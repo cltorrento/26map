@@ -4,6 +4,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import MapView, { Marker, Circle } from "react-native-maps";
 import * as Location from "expo-location";
 import axios from "axios";
+import { GOOGLE_API_KEY } from "@env";
 
 export default function App() {
   const [view, setView] = useState("map");
@@ -13,7 +14,8 @@ export default function App() {
   const mapRef = useRef<MapView>(null);
 
   useEffect(() => {
-    loadFavorites();
+    //loadFavorites();
+    removeAllFavorites();
 
     if (view === "map" || view === "list") {
       (async () => {
@@ -36,7 +38,7 @@ export default function App() {
   const fetchHistoricPlaces = async () => {
     try {
       const response = await axios.get(
-        `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${location.latitude},${location.longitude}&radius=5000&type=point_of_interest&keyword=historic&key=XXXX`
+        `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${location.latitude},${location.longitude}&radius=5000&type=point_of_interest&keyword=historic&key=${GOOGLE_API_KEY}`
       );
 
       setPlaces(response.data.results);
@@ -92,6 +94,30 @@ export default function App() {
     }
   };
 
+  const removeFavorite = async (placeId) => {
+    try {
+      const updatedFavorites = favorites.filter(
+        (place) => place.place_id !== placeId
+      );
+      setFavorites(updatedFavorites);
+      await AsyncStorage.setItem(
+        "@favorites",
+        JSON.stringify(updatedFavorites)
+      );
+    } catch (error) {
+      console.error("Error al eliminar favorito:", error);
+    }
+  };
+
+  const removeAllFavorites = async () => {
+    try {
+      setFavorites([]);
+      await AsyncStorage.removeItem("@favorites");
+    } catch (error) {
+      console.error("Error al eliminar todos los favoritos:", error);
+    }
+  };
+
   const recenterMap = () => {
     if (location && mapRef.current) {
       mapRef.current.animateToRegion({
@@ -133,9 +159,9 @@ export default function App() {
               strokeColor="rgba(0, 122, 255, 0.5)"
               fillColor="rgba(0, 122, 255, 0.2)"
             />
-            {places.map((place) => (
+            {places.map((place, index) => (
               <Marker
-                key={place.place_id}
+                key={`${place.place_id}_${index}`}
                 coordinate={{
                   latitude: place.geometry.location.lat,
                   longitude: place.geometry.location.lng,
