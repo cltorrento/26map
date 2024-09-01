@@ -8,7 +8,7 @@ import {
   ScrollView,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import MapView, { Marker, Circle } from "react-native-maps";
+import MapView, { Marker, Circle, Polyline } from "react-native-maps";
 import * as Location from "expo-location";
 import axios from "axios";
 import { GOOGLE_API_KEY } from "@env";
@@ -20,6 +20,7 @@ export default function App() {
   const [places, setPlaces] = useState<any[]>([]);
   const [favorites, setFavorites] = useState<any[]>([]);
   const [targetLocation, setTargetLocation] = useState(null);
+  const [route, setRoute] = useState([]); // Estado para almacenar la ruta
   const mapRef = useRef<MapView>(null);
 
   useEffect(() => {
@@ -43,7 +44,7 @@ export default function App() {
     }
   }, [view, location]);
 
-  // Efecto para centrar el mapa después de cambiar a la vista "map"
+  // Efecto para centrar el mapa y mostrar la ruta después de cambiar a la vista "map"
   useEffect(() => {
     if (view === "map" && targetLocation && mapRef.current) {
       mapRef.current.animateToRegion({
@@ -133,9 +134,59 @@ export default function App() {
     }
   };
 
-  const goToLocation = (lat, lng) => {
-    setTargetLocation({ latitude: lat, longitude: lng });
-    setView("map");
+  // Función para obtener la ruta y cambiar a la vista de mapa
+  const fetchRoute = async (lat, lng) => {
+    try {
+      const response = await axios.get(
+        `https://maps.googleapis.com/maps/api/directions/json?origin=${location.latitude},${location.longitude}&destination=${lat},${lng}&key=${GOOGLE_API_KEY}`
+      );
+      const points = decodePolyline(
+        response.data.routes[0].overview_polyline.points
+      );
+      setRoute(points);
+      setTargetLocation({ latitude: lat, longitude: lng }); // Cambiamos la vista al mapa con la ruta cargada
+      setView("map");
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  // Decodificar la polilínea de la API de Google
+  const decodePolyline = (encoded) => {
+    let points = [];
+    let index = 0,
+      len = encoded.length;
+    let lat = 0,
+      lng = 0;
+
+    while (index < len) {
+      let b,
+        shift = 0,
+        result = 0;
+      do {
+        b = encoded.charCodeAt(index++) - 63;
+        result |= (b & 0x1f) << shift;
+        shift += 5;
+      } while (b >= 0x20);
+      let dlat = result & 1 ? ~(result >> 1) : result >> 1;
+      lat += dlat;
+
+      shift = 0;
+      result = 0;
+      do {
+        b = encoded.charCodeAt(index++) - 63;
+        result |= (b & 0x1f) << shift;
+        shift += 5;
+      } while (b >= 0x20);
+      let dlng = result & 1 ? ~(result >> 1) : result >> 1;
+      lng += dlng;
+
+      points.push({
+        latitude: lat / 1e5,
+        longitude: lng / 1e5,
+      });
+    }
+    return points;
   };
 
   const renderView = () => {
@@ -152,12 +203,14 @@ export default function App() {
               longitudeDelta: 0.0421,
             }}
           >
+            {/* Marker para la ubicación de origen */}
             <Marker
               coordinate={{
                 latitude: location.latitude,
                 longitude: location.longitude,
               }}
               title={"Tu Ubicación"}
+              pinColor="blue" // Color azul para la ubicación de origen
             />
             <Circle
               center={{
@@ -168,6 +221,20 @@ export default function App() {
               strokeColor="rgba(0, 122, 255, 0.5)"
               fillColor="rgba(0, 122, 255, 0.2)"
             />
+
+            {/* Marker para la ubicación de destino */}
+            {targetLocation && (
+              <Marker
+                coordinate={{
+                  latitude: targetLocation.latitude,
+                  longitude: targetLocation.longitude,
+                }}
+                title={"Destino"}
+                pinColor="black" // Color negro para la ubicación de destino
+              />
+            )}
+
+            {/* Otros markers de lugares de interés */}
             {places.map((place, index) => (
               <Marker
                 key={`${place.place_id}_${index}`}
@@ -179,6 +246,15 @@ export default function App() {
                 description={place.vicinity}
               />
             ))}
+
+            {/* Polilínea para la ruta */}
+            {route.length > 0 && (
+              <Polyline
+                coordinates={route}
+                strokeColor="#007AFF"
+                strokeWidth={4}
+              />
+            )}
           </MapView>
           <TouchableOpacity style={styles.recenterButton} onPress={recenterMap}>
             <Text style={styles.recenterText}>Centrar</Text>
@@ -197,7 +273,7 @@ export default function App() {
               <View style={styles.iconContainer}>
                 <TouchableOpacity
                   onPress={() =>
-                    goToLocation(
+                    fetchRoute(
                       place.geometry.location.lat,
                       place.geometry.location.lng
                     )
