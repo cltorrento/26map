@@ -36,7 +36,7 @@ export default function App() {
   const fetchHistoricPlaces = async () => {
     try {
       const response = await axios.get(
-        `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${location.latitude},${location.longitude}&radius=5000&type=point_of_interest&keyword=historic&key=AIzaSyC0GEerczAUss6U4-T_Fgza6IzEEnsuCBw`
+        `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${location.latitude},${location.longitude}&radius=5000&type=point_of_interest&keyword=historic&key=XXXX`
       );
 
       setPlaces(response.data.results);
