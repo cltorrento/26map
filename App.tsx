@@ -44,15 +44,21 @@ export default function App() {
     }
   }, [view, location]);
 
-  // Efecto para centrar el mapa y mostrar la ruta después de cambiar a la vista "map"
   useEffect(() => {
     if (view === "map" && targetLocation && mapRef.current) {
-      mapRef.current.animateToRegion({
-        latitude: targetLocation.latitude,
-        longitude: targetLocation.longitude,
-        latitudeDelta: 0.005, // Más cercano
-        longitudeDelta: 0.005, // Más cercano
-      });
+      mapRef.current.fitToCoordinates(
+        [
+          { latitude: location.latitude, longitude: location.longitude },
+          {
+            latitude: targetLocation.latitude,
+            longitude: targetLocation.longitude,
+          },
+        ],
+        {
+          edgePadding: { top: 50, right: 50, bottom: 50, left: 50 },
+          animated: true,
+        }
+      );
       setTargetLocation(null); // Reinicia el estado después de centrar el mapa
     }
   }, [view, targetLocation]);
@@ -134,11 +140,18 @@ export default function App() {
     }
   };
 
+  // Función para restablecer el mapa
+  const resetMap = () => {
+    setTargetLocation(null);
+    setRoute([]);
+    recenterMap(); // Opcional: Recéntrate en la ubicación actual
+  };
+
   // Función para obtener la ruta y cambiar a la vista de mapa
   const fetchRoute = async (lat, lng) => {
     try {
       const response = await axios.get(
-        `https://maps.googleapis.com/maps/api/directions/json?origin=${location.latitude},${location.longitude}&destination=${lat},${lng}&key=${GOOGLE_API_KEY}`
+        `https://maps.googleapis.com/maps/api/directions/json?origin=${location.latitude},${location.longitude}&destination=${lat},${lng}&mode=walking&key=${GOOGLE_API_KEY}`
       );
       const points = decodePolyline(
         response.data.routes[0].overview_polyline.points
@@ -210,7 +223,7 @@ export default function App() {
                 longitude: location.longitude,
               }}
               title={"Tu Ubicación"}
-              pinColor="blue" // Color azul para la ubicación de origen
+              pinColor="orange" // Color azul para la ubicación de origen
             />
             <Circle
               center={{
@@ -230,7 +243,7 @@ export default function App() {
                   longitude: targetLocation.longitude,
                 }}
                 title={"Destino"}
-                pinColor="black" // Color negro para la ubicación de destino
+                pinColor="green" // Color negro para la ubicación de destino
               />
             )}
 
@@ -257,7 +270,22 @@ export default function App() {
             )}
           </MapView>
           <TouchableOpacity style={styles.recenterButton} onPress={recenterMap}>
-            <Text style={styles.recenterText}>Centrar</Text>
+            <Icon
+              name="locate-outline"
+              size={24}
+              color="#FF0000"
+              style={styles.recenterText}
+            />
+          </TouchableOpacity>
+
+          {/* Botón de Reset */}
+          <TouchableOpacity style={styles.resetButton} onPress={resetMap}>
+            <Icon
+              name="map-outline"
+              size={24}
+              color="#FF0000"
+              style={styles.resetText}
+            />
           </TouchableOpacity>
         </View>
       );
@@ -392,5 +420,23 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "bold",
     color: "#007AFF",
+  },
+  resetButton: {
+    position: "absolute",
+    bottom: 80,
+    right: 20,
+    backgroundColor: "#FF6347",
+    padding: 10,
+    borderRadius: 5,
+    elevation: 5,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.8,
+    shadowRadius: 2,
+  },
+  resetText: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#fff",
   },
 });
