@@ -1,21 +1,29 @@
 import React, { useState, useEffect, useRef } from "react";
-import { StyleSheet, View, Button, Text, TouchableOpacity } from "react-native";
+import {
+  StyleSheet,
+  View,
+  Button,
+  Text,
+  TouchableOpacity,
+  ScrollView,
+} from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import MapView, { Marker, Circle } from "react-native-maps";
 import * as Location from "expo-location";
 import axios from "axios";
 import { GOOGLE_API_KEY } from "@env";
+import Icon from "react-native-vector-icons/Ionicons";
 
 export default function App() {
   const [view, setView] = useState("map");
   const [location, setLocation] = useState(null);
   const [places, setPlaces] = useState<any[]>([]);
   const [favorites, setFavorites] = useState<any[]>([]);
+  const [targetLocation, setTargetLocation] = useState(null); // Nueva variable de estado
   const mapRef = useRef<MapView>(null);
 
   useEffect(() => {
-    //loadFavorites();
-    removeAllFavorites();
+    loadFavorites();
 
     if (view === "map" || view === "list") {
       (async () => {
@@ -35,6 +43,19 @@ export default function App() {
     }
   }, [view, location]);
 
+  // Efecto para centrar el mapa después de cambiar a la vista "map"
+  useEffect(() => {
+    if (view === "map" && targetLocation && mapRef.current) {
+      mapRef.current.animateToRegion({
+        latitude: targetLocation.latitude,
+        longitude: targetLocation.longitude,
+        latitudeDelta: 0.005, // Más cercano
+        longitudeDelta: 0.005, // Más cercano
+      });
+      setTargetLocation(null); // Reinicia el estado después de centrar el mapa
+    }
+  }, [view, targetLocation]);
+
   const fetchHistoricPlaces = async () => {
     try {
       const response = await axios.get(
@@ -45,29 +66,6 @@ export default function App() {
     } catch (error) {
       console.error(error);
     }
-  };
-
-  const haversineDistance = (coords1, coords2) => {
-    const toRad = (x) => (x * Math.PI) / 180;
-
-    const lat1 = coords1.latitude;
-    const lon1 = coords1.longitude;
-    const lat2 = coords2.latitude;
-    const lon2 = coords2.longitude;
-
-    const R = 6371e3; // Earth radius in meters
-    const φ1 = toRad(lat1);
-    const φ2 = toRad(lat2);
-    const Δφ = toRad(lat2 - lat1);
-    const Δλ = toRad(lon2 - lon1);
-
-    const a =
-      Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
-      Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-    const distance = R * c; // in meters
-    return distance;
   };
 
   const saveFavorite = async (place) => {
@@ -129,6 +127,11 @@ export default function App() {
     }
   };
 
+  const goToLocation = (lat, lng) => {
+    setTargetLocation({ latitude: lat, longitude: lng });
+    setView("map");
+  };
+
   const renderView = () => {
     if (view === "map" && location) {
       return (
@@ -178,17 +181,36 @@ export default function App() {
       );
     } else if (view === "list") {
       return (
-        <View style={styles.listContainer}>
+        <ScrollView style={styles.listContainer}>
           {places.map((place) => (
-            <TouchableOpacity
-              key={place.place_id}
-              onPress={() => saveFavorite(place)}
-            >
-              <Text style={styles.listItem}>{place.name}</Text>
-              <Text>{place.vicinity}</Text>
-            </TouchableOpacity>
+            <View key={place.place_id} style={styles.listItemContainer}>
+              <View style={styles.listItemTextContainer}>
+                <Text style={styles.listItem}>{place.name}</Text>
+                <Text>{place.vicinity}</Text>
+              </View>
+              <View style={styles.iconContainer}>
+                <TouchableOpacity
+                  onPress={() =>
+                    goToLocation(
+                      place.geometry.location.lat,
+                      place.geometry.location.lng
+                    )
+                  }
+                >
+                  <Icon name="navigate" size={24} color="#007AFF" />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => saveFavorite(place)}>
+                  <Icon
+                    name="heart-outline"
+                    size={24}
+                    color="#FF0000"
+                    style={styles.iconMarginLeft}
+                  />
+                </TouchableOpacity>
+              </View>
+            </View>
           ))}
-        </View>
+        </ScrollView>
       );
     } else if (view === "details") {
       return (
@@ -241,9 +263,28 @@ const styles = StyleSheet.create({
   listContainer: {
     padding: 20,
   },
+  listItemContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 15,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#ccc",
+  },
+  listItemTextContainer: {
+    flex: 1,
+  },
   listItem: {
     fontSize: 18,
-    paddingVertical: 10,
+    paddingVertical: 5,
+  },
+  iconContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  iconMarginLeft: {
+    marginLeft: 15,
   },
   detailsContainer: {
     padding: 20,
