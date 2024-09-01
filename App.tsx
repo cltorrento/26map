@@ -19,7 +19,7 @@ export default function App() {
   const [location, setLocation] = useState(null);
   const [places, setPlaces] = useState<any[]>([]);
   const [favorites, setFavorites] = useState<any[]>([]);
-  const [targetLocation, setTargetLocation] = useState(null); // Nueva variable de estado
+  const [targetLocation, setTargetLocation] = useState(null);
   const mapRef = useRef<MapView>(null);
 
   useEffect(() => {
@@ -59,10 +59,16 @@ export default function App() {
   const fetchHistoricPlaces = async () => {
     try {
       const response = await axios.get(
-        `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${location.latitude},${location.longitude}&radius=5000&type=point_of_interest&keyword=historic&key=${GOOGLE_API_KEY}`
+        `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${location.latitude},${location.longitude}&radius=5000&type=tourist_attraction|museum|art_gallery&key=${GOOGLE_API_KEY}`
       );
 
-      setPlaces(response.data.results);
+      // Filtrar por calificación
+      const filteredPlaces = response.data.results.filter(
+        (place) =>
+          place.rating && place.rating >= 4.5 && place.user_ratings_total >= 100
+      );
+
+      setPlaces(filteredPlaces);
     } catch (error) {
       console.error(error);
     }
