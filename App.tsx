@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { StyleSheet, View, Button, Text, TouchableOpacity } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import MapView, { Marker } from "react-native-maps";
+import MapView, { Marker, Circle } from "react-native-maps";
 import * as Location from "expo-location";
 import axios from "axios";
 
@@ -15,7 +15,7 @@ export default function App() {
   useEffect(() => {
     loadFavorites();
 
-    if (view === "map") {
+    if (view === "map" || view === "list") {
       (async () => {
         let { status } = await Location.requestForegroundPermissionsAsync();
         if (status !== "granted") {
@@ -28,30 +28,18 @@ export default function App() {
       })();
     }
 
-    if (view === "list") {
+    if (view === "list" && location) {
       fetchHistoricPlaces();
     }
-  }, [view]);
+  }, [view, location]);
 
   const fetchHistoricPlaces = async () => {
     try {
       const response = await axios.get(
-        "https://en.wikipedia.org/w/api.php?action=query&list=geosearch&gsradius=100&gscoord=" +
-          location.latitude +
-          "|" +
-          location.longitude +
-          "&format=json&origin=*"
+        `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${location.latitude},${location.longitude}&radius=5000&type=point_of_interest&keyword=historic&key=AIzaSyC0GEerczAUss6U4-T_Fgza6IzEEnsuCBw`
       );
 
-      const nearbyPlaces = response.data.query.geosearch.filter((place) => {
-        const distance = haversineDistance(
-          { latitude: location.latitude, longitude: location.longitude },
-          { latitude: place.lat, longitude: place.lon }
-        );
-        return distance <= 100; // Filtrar lugares a 100 metros
-      });
-
-      setPlaces(nearbyPlaces);
+      setPlaces(response.data.results);
     } catch (error) {
       console.error(error);
     }
@@ -136,6 +124,26 @@ export default function App() {
               }}
               title={"Tu Ubicación"}
             />
+            <Circle
+              center={{
+                latitude: location.latitude,
+                longitude: location.longitude,
+              }}
+              radius={50}
+              strokeColor="rgba(0, 122, 255, 0.5)"
+              fillColor="rgba(0, 122, 255, 0.2)"
+            />
+            {places.map((place) => (
+              <Marker
+                key={place.place_id}
+                coordinate={{
+                  latitude: place.geometry.location.lat,
+                  longitude: place.geometry.location.lng,
+                }}
+                title={place.name}
+                description={place.vicinity}
+              />
+            ))}
           </MapView>
           <TouchableOpacity style={styles.recenterButton} onPress={recenterMap}>
             <Text style={styles.recenterText}>Centrar</Text>
@@ -147,10 +155,11 @@ export default function App() {
         <View style={styles.listContainer}>
           {places.map((place) => (
             <TouchableOpacity
-              key={place.pageid}
+              key={place.place_id}
               onPress={() => saveFavorite(place)}
             >
-              <Text style={styles.listItem}>{place.title}</Text>
+              <Text style={styles.listItem}>{place.name}</Text>
+              <Text>{place.vicinity}</Text>
             </TouchableOpacity>
           ))}
         </View>
@@ -166,8 +175,8 @@ export default function App() {
       return (
         <View style={styles.listContainer}>
           {favorites.map((place) => (
-            <Text key={place.pageid} style={styles.listItem}>
-              {place.title}
+            <Text key={place.place_id} style={styles.listItem}>
+              {place.name}
             </Text>
           ))}
         </View>
